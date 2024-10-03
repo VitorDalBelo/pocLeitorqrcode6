@@ -1,45 +1,44 @@
-import React, { useState, useEffect } from "react";
-import { Text, View, StyleSheet, Button } from "react-native";
-import { CameraView, Camera } from "expo-camera";
+import React, { useState, useRef } from "react";
+import { View, StyleSheet, Button } from "react-native";
+import QRCode from "react-native-qrcode-svg";
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 export default function App() {
-  const [hasPermission, setHasPermission] = useState<any>(null);
-  const [scanned, setScanned] = useState(false);
+  const [qrCodeValue, setQrCodeValue] = useState("Texto para QR Code");
+  const svgRef = useRef<any>();
 
-  useEffect(() => {
-    const getCameraPermissions = async () => {
-      const { status  } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === "granted");
-    };
+  async function shareQrcode() {
+    // Converta o QR code gerado em PNG (como uma string de dados base64)
+    if(svgRef.current === undefined)return null;
+    svgRef.current.toDataURL(async (dataURL:any) => {
+      try {
+        // Crie um caminho temporário para salvar a imagem convertida
+        const fileUri = FileSystem.cacheDirectory + "qrcode.png";
 
-    getCameraPermissions();
-  }, []);
+        // Salve a imagem temporariamente
+        await FileSystem.writeAsStringAsync(fileUri, dataURL, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
 
-  const handleBarcodeScanned = (data: any) => {
-    setScanned(true);
-    console.log(data);
-    alert(`Código de barras com tipo ${data.type} e dados ${data.data} foi escaneado!`);
-  };
-
-  if (hasPermission === null) {
-    return <Text>Solicitando permissão para usar a câmera</Text>;
-  }
-  if (hasPermission === false) {
-    return <Text>Sem acesso à câmera</Text>;
+        // Compartilhe a imagem
+        await Sharing.shareAsync(fileUri);
+      } catch (error) {
+        console.log("Erro ao compartilhar:", error);
+      }
+    });
   }
 
   return (
     <View style={styles.container}>
-      <CameraView
-        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ["qr", "pdf417"],
-        }}
-        style={StyleSheet.absoluteFillObject}
+      {/* Gerador de QR Code */}
+      <QRCode
+        value={qrCodeValue}
+        size={200}
+        getRef={(c) => (svgRef.current = c)}
       />
-      {scanned && (
-        <Button title={"Toque para escanear novamente"} onPress={() => setScanned(false)} />
-      )}
+
+      <Button title={"Compartilhar QR Code"} onPress={shareQrcode} />
     </View>
   );
 }
@@ -47,7 +46,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: "column",
     justifyContent: "center",
+    alignItems: "center",
   },
 });
